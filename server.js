@@ -2,28 +2,41 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const multer = require("multer");
+
 const { getData, getOptions, reloadExcel } = require("./services/excelService");
 const { calculateEstimate } = require("./services/calculator");
 const { sendEstimateEmails } = require("./services/emailService");
-const multer = require("multer");
 
 const app = express();
+const PORT = process.env.PORT || 5000;
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://calculator.qbh.qa",
+];
 
 app.use(
   cors({
-    origin: "https://calculator.qbh.qa",
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  }),
+  })
 );
+
 app.use(express.json());
-const PORT = process.env.PORT || 5000;
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, "data/");
   },
-
   filename: function (req, file, cb) {
     cb(null, "freight_rates.xlsx");
   },
@@ -47,7 +60,7 @@ const upload = multer({
 const relocationUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB each
+    fileSize: 5 * 1024 * 1024,
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith("image/")) {
@@ -67,6 +80,7 @@ app.get("/api/options", async (req, res) => {
     const options = await getOptions();
     res.json(options);
   } catch (err) {
+    console.error("Options loading failed:", err);
     res.status(500).json({ message: "Error loading options" });
   }
 });
@@ -86,10 +100,10 @@ app.post("/api/upload-pricing", upload.single("file"), async (req, res) => {
 
     res.json({
       success: true,
-      message: "freight rates Excel uploaded successfully",
+      message: "Freight rates Excel uploaded successfully",
     });
   } catch (err) {
-    console.error(err);
+    console.error("Upload failed:", err);
 
     res.status(500).json({
       success: false,
@@ -102,7 +116,6 @@ app.post("/api/estimate", async (req, res) => {
   try {
     const { freightType, details, customerInfo } = req.body;
 
-    const data = await getData();
     if (!customerInfo?.name || !customerInfo?.email || !customerInfo?.phone) {
       return res.status(400).json({
         success: false,
@@ -118,9 +131,20 @@ app.post("/api/estimate", async (req, res) => {
         message: "Invalid email address",
       });
     }
+
+    const data = await getData();
     const estimate = calculateEstimate(freightType, details, data);
 
     if (estimate === null || Number.isNaN(estimate)) {
+      sendEstimateEmails({
+        freightType,
+        details,
+        customerInfo,
+        estimate: "Quote Pending",
+      }).catch((err) => {
+        console.error("Quote pending email failed:", err);
+      });
+
       return res.json({
         success: true,
         freightType,
@@ -146,12 +170,12 @@ app.post("/api/estimate", async (req, res) => {
       freightType,
       estimate,
       currency: "QAR",
-      customerInfo: customerInfo || null,
+      customerInfo,
       disclaimer:
         "Final pricing may vary based on handling, customs, fuel surcharge, availability, and operational conditions.",
     });
   } catch (err) {
-    console.error(err);
+    console.error("Calculation failed:", err);
 
     res.status(500).json({
       success: false,
@@ -173,6 +197,7 @@ app.post(
           message: "Missing required fields",
         });
       }
+
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
       if (!emailRegex.test(email)) {
@@ -181,6 +206,7 @@ app.post(
           message: "Invalid email address",
         });
       }
+
       sendEstimateEmails({
         freightType: "Relocation",
         details: { from, to },
@@ -199,15 +225,24 @@ app.post(
           "Your relocation enquiry has been submitted. Our team will contact you.",
       });
     } catch (err) {
-      console.error(err);
+      console.error("Relocation enquiry failed:", err);
+
       res.status(500).json({
         success: false,
         message: "Relocation enquiry failed",
       });
     }
-  },
+  }
 );
 
+app.use((err, req, res, next) => {
+  console.error("Server error:", err.message);
+
+  res.status(500).json({
+    success: false,
+    message: err.message || "Internal server error",
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
