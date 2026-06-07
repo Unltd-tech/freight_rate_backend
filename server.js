@@ -28,7 +28,7 @@ app.use(
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 app.use(express.json());
@@ -96,8 +96,8 @@ app.post("/api/upload-pricing", upload.single("file"), async (req, res) => {
       });
     }
 
-    reloadExcel();
-
+    await reloadExcel();
+    
     res.json({
       success: true,
       message: "Freight rates Excel uploaded successfully",
@@ -232,7 +232,7 @@ app.post(
         message: "Relocation enquiry failed",
       });
     }
-  }
+  },
 );
 
 app.use((err, req, res, next) => {
