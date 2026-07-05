@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
+const path = require("path");
 
 const { getData, getOptions, reloadExcel } = require("./services/excelService");
 const { calculateEstimate } = require("./services/calculator");
@@ -17,7 +18,7 @@ const allowedOrigins = [
   "https://calculator.qbh.qa",
 ];
 
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
 app.use(
   cors({
