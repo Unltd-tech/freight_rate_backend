@@ -17,6 +17,8 @@ const allowedOrigins = [
   "https://calculator.qbh.qa",
 ];
 
+app.use(express.static("public"));
+
 app.use(
   cors({
     origin: function (origin, callback) {
