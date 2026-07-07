@@ -100,7 +100,7 @@ app.post("/api/upload-pricing", upload.single("file"), async (req, res) => {
     }
 
     await reloadExcel();
-    
+
     res.json({
       success: true,
       message: "Freight rates Excel uploaded successfully",
@@ -132,6 +132,14 @@ app.post("/api/estimate", async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Invalid email address",
+      });
+    }
+    const phoneRegex = /^\+[1-9]\d{7,14}$/;
+
+    if (!phoneRegex.test(customerInfo.phone)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid mobile number",
       });
     }
 
@@ -209,7 +217,14 @@ app.post(
           message: "Invalid email address",
         });
       }
+      const phoneRegex = /^\+[1-9]\d{7,14}$/;
 
+      if (!phoneRegex.test(phone)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid mobile number",
+        });
+      }
       sendEstimateEmails({
         freightType: "Relocation",
         details: { from, to },
